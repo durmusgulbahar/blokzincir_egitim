@@ -1,0 +1,18 @@
+3. Açıklamalı Adım Adım Çalışma ve Saldırı Mekanizması
+Savunmasız Kontratın Açığı
+ReentrancyVulnerable kontratındaki withdraw fonksiyonu, Checks-Effects-Interactions modeline uymuyor. Bu model, önce kontrollerin (checks) yapılması, ardından durum değişkenlerinin güncellenmesi (effects) ve son olarak dış çağrıların (interactions) gerçekleştirilmesi gerektiğini söyler. Ancak bu kontratta:
+
+Hatalı Sıralama: withdraw fonksiyonu, önce Ether’i kullanıcıya gönderiyor (msg.sender.call), sonra bakiyeyi güncelliyor (balances[msg.sender] -= _amount). Bu, dış çağrıdan önce bakiyenin güncellenmemesi anlamına gelir.
+Reentrancy Riski: Eğer msg.sender bir kontrat ise, Ether gönderildiğinde bu kontratın receive veya fallback fonksiyonu tetiklenir. Bu fonksiyon, withdraw fonksiyonunu tekrar çağırabilir ve bakiye henüz güncellenmediği için aynı Ether’i tekrar çekebilir.
+Saldırı Nasıl Gerçekleşir?
+Hazırlık: Saldırgan, ReentrancyAttack kontratını deploy eder ve savunmasız kontratın adresini constructor’a parametre olarak verir.
+Ether Yatırma: Saldırgan, attack fonksiyonunu çağırarak savunmasız kontrata 1 Ether yatırır (deposit fonksiyonu ile).
+Saldırıyı Başlatma: attack fonksiyonu, savunmasız kontratın withdraw fonksiyonunu çağırır. Bu, 1 Ether’i ReentrancyAttack kontratına gönderir.
+Reentrancy Döngüsü: Ether gönderildiğinde, ReentrancyAttack kontratının receive fonksiyonu tetiklenir. Bu fonksiyon, savunmasız kontratta hala Ether olduğu sürece withdraw fonksiyonunu tekrar çağırır. Çünkü bakiye henüz güncellenmemiştir, saldırgan aynı 1 Ether’i tekrar tekrar çekebilir.
+Sonuç: Savunmasız kontrattaki tüm Ether, saldırganın kontratına aktarılır.
+Örnek Senaryo
+Savunmasız kontratta 10 Ether var.
+Saldırgan, 1 Ether yatırır ve attack fonksiyonunu çağırır.
+withdraw fonksiyonu 1 Ether’i saldırgan kontratına gönderir.
+receive fonksiyonu tetiklenir ve withdraw tekrar çağrılır. Bu döngü, savunmasız kontratta Ether tükenene kadar devam eder.
+Sonuç: Saldırgan, 1 Ether yatırarak 10 Ether çalar.
